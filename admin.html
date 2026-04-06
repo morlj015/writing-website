@@ -271,69 +271,6 @@
 
     .format-indicator.visible { opacity: 1; }
 
-    /* ── Feedback panel ──────────────────────────────────────────────────────── */
-
-    .sidebar-feedback-btn {
-      padding: 0.75rem 1rem;
-      border-top: 1px solid var(--border);
-    }
-
-    .feedback-nav-btn {
-      width: 100%;
-      background: transparent;
-      color: var(--muted);
-      border-color: var(--border);
-      text-align: left;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .feedback-nav-btn.has-new { color: var(--text); }
-
-    .feedback-count {
-      background: var(--accent);
-      color: var(--bg);
-      border-radius: 10px;
-      padding: 0.05rem 0.5rem;
-      font-size: 0.65rem;
-    }
-
-    .feedback-item {
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 1rem;
-      margin-bottom: 0.75rem;
-      background: var(--surface);
-    }
-
-    .feedback-item-date {
-      font-size: 0.7rem;
-      color: var(--muted);
-      letter-spacing: 0.03em;
-      margin-bottom: 0.5rem;
-    }
-
-    .feedback-item-body {
-      font-size: 0.88rem;
-      line-height: 1.6;
-      white-space: pre-wrap;
-      margin-bottom: 0.75rem;
-    }
-
-    .feedback-empty {
-      color: var(--muted);
-      font-size: 0.85rem;
-      text-align: center;
-      padding: 3rem 0;
-      font-style: italic;
-    }
-
-    .feedback-loading {
-      color: var(--muted);
-      font-size: 0.82rem;
-      padding: 1rem 0;
-    }
   </style>
 </head>
 <body>
@@ -382,12 +319,6 @@
           <button class="btn btn-primary btn-sm" id="new-chapter-btn" style="width:100%">+ New chapter</button>
         </div>
         <div class="chapter-list" id="chapter-list"></div>
-        <div class="sidebar-feedback-btn">
-          <button class="btn btn-secondary btn-sm feedback-nav-btn" id="show-feedback-btn">
-            <span>Feedback</span>
-            <span class="feedback-count" id="feedback-count" style="display:none"></span>
-          </button>
-        </div>
       </aside>
 
       <div class="editor-area">
@@ -443,13 +374,6 @@
               <button class="btn btn-success" id="save-chapter-btn">Update site</button>
             </div>
           </div>
-        </div>
-
-        <!-- Feedback panel -->
-        <div id="feedback-panel" style="display:none">
-          <p class="editor-heading">Reader Feedback</p>
-          <p class="editor-sub">Anonymous feedback from your readers. Dismiss to archive.</p>
-          <div id="feedback-list"></div>
         </div>
 
       </div>
@@ -820,130 +744,6 @@
       setTimeout(() => el.classList.remove('visible'), 8000);
     }
 
-    // ── Feedback ──────────────────────────────────────────────────────────────
-
-    function showPanel(name) {
-      document.getElementById('editor-placeholder').style.display = name === 'placeholder' ? '' : 'none';
-      document.getElementById('chapter-editor').style.display     = name === 'chapter'     ? '' : 'none';
-      document.getElementById('feedback-panel').style.display     = name === 'feedback'    ? '' : 'none';
-    }
-
-    // Patch openChapter and new-chapter to close feedback panel
-    const _origOpen = openChapter;
-    openChapter = function(id) { showPanel('chapter'); _origOpen(id); };
-    document.getElementById('new-chapter-btn').addEventListener('click', () => showPanel('chapter'), true);
-
-    async function fetchFeedback() {
-      const res = await fetch(
-        `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/issues?state=open&labels=feedback&per_page=50`,
-        { headers: { 'Authorization': `Bearer ${githubPAT}`, 'Accept': 'application/vnd.github+json' } }
-      );
-      if (!res.ok) return [];
-      return res.json();
-    }
-
-    async function updateFeedbackBadge() {
-      try {
-        const items = await fetchFeedback();
-        const badge = document.getElementById('feedback-count');
-        const btn   = document.getElementById('show-feedback-btn');
-        if (items.length > 0) {
-          badge.textContent = items.length;
-          badge.style.display = '';
-          btn.classList.add('has-new');
-        } else {
-          badge.style.display = 'none';
-          btn.classList.remove('has-new');
-        }
-      } catch (_) {}
-    }
-
-    async function dismissFeedback(number, itemEl) {
-      itemEl.style.opacity = '0.4';
-      await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/issues/${number}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${githubPAT}`,
-          'Accept': 'application/vnd.github+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ state: 'closed' })
-      });
-      itemEl.remove();
-      // Update badge
-      const remaining = document.querySelectorAll('.feedback-item').length;
-      const badge = document.getElementById('feedback-count');
-      if (remaining === 0) {
-        badge.style.display = 'none';
-        document.getElementById('show-feedback-btn').classList.remove('has-new');
-        document.getElementById('feedback-list').innerHTML = '<p class="feedback-empty">No feedback yet.</p>';
-      } else {
-        badge.textContent = remaining;
-      }
-    }
-
-    document.getElementById('show-feedback-btn').addEventListener('click', async () => {
-      showPanel('feedback');
-      activeChapterId = null;
-      renderChapterList();
-
-      const list = document.getElementById('feedback-list');
-      list.innerHTML = '<p class="feedback-loading">Loading…</p>';
-
-      let items;
-      try {
-        items = await fetchFeedback();
-      } catch (err) {
-        list.innerHTML = '<p class="feedback-empty">Could not load feedback.</p>';
-        return;
-      }
-
-      // Sync badge
-      const badge = document.getElementById('feedback-count');
-      const btn   = document.getElementById('show-feedback-btn');
-      if (items.length > 0) {
-        badge.textContent = items.length;
-        badge.style.display = '';
-        btn.classList.add('has-new');
-      } else {
-        badge.style.display = 'none';
-        btn.classList.remove('has-new');
-      }
-
-      if (items.length === 0) {
-        list.innerHTML = '<p class="feedback-empty">No feedback yet.</p>';
-        return;
-      }
-
-      list.innerHTML = '';
-      items.forEach(issue => {
-        const date = new Date(issue.created_at).toLocaleDateString('en-GB', {
-          day: 'numeric', month: 'long', year: 'numeric'
-        });
-        // Strip the markdown quote formatting added on submission
-        const body = (issue.body || '')
-          .replace(/^> /gm, '')
-          .replace(/\n\n\*Submitted.*\*$/, '')
-          .trim();
-
-        const item = document.createElement('div');
-        item.className = 'feedback-item';
-        item.innerHTML = `
-          <p class="feedback-item-date">${date}</p>
-          <p class="feedback-item-body">${body.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>
-          <button class="btn btn-secondary btn-sm">Dismiss</button>
-        `;
-        item.querySelector('button').addEventListener('click', () => dismissFeedback(issue.number, item));
-        list.appendChild(item);
-      });
-    });
-
-    // Show feedback badge count after login
-    const _origLoadData = loadData;
-    loadData = async function() {
-      await _origLoadData();
-      updateFeedbackBadge();
-    };
   </script>
 </body>
 </html>

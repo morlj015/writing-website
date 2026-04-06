@@ -231,8 +231,6 @@
     }
     .admin-link:hover { color: var(--muted); }
 
-    /* ── Feedback ────────────────────────────────────────────────────────────── */
-
     /* ── Scene break ─────────────────────────────────────────────────────────── */
 
     .scene-break {
@@ -245,79 +243,6 @@
       margin: 0.5rem 0;
     }
 
-    .feedback-section {
-      border-top: 1px solid var(--border);
-      padding-top: 3.5rem;
-      margin-top: 2rem;
-      padding-bottom: 2rem;
-    }
-
-    .feedback-label {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 0.7rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-    }
-
-    .feedback-sub {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 0.85rem;
-      color: var(--muted);
-      font-style: italic;
-      margin-bottom: 1.25rem;
-    }
-
-    #feedback-text {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Literata', Georgia, serif;
-      font-size: 0.95rem;
-      line-height: 1.65;
-      padding: 0.75rem;
-      resize: vertical;
-      min-height: 110px;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-
-    #feedback-text:focus { border-color: var(--accent); }
-
-    .feedback-footer {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 0.6rem;
-    }
-
-    #feedback-submit {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 0.82rem;
-      padding: 0.45rem 1.1rem;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      background: var(--accent);
-      color: var(--bg);
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-
-    #feedback-submit:hover { opacity: 0.8; }
-    #feedback-submit:disabled { opacity: 0.4; cursor: default; }
-
-    .feedback-sent {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 0.82rem;
-      color: var(--muted);
-      margin-top: 0.75rem;
-      display: none;
-      font-style: italic;
-    }
-
-    .feedback-sent.visible { display: block; }
   </style>
 </head>
 <body>
@@ -347,17 +272,6 @@
     </nav>
     <main id="chapters"></main>
     <p class="empty-state" id="empty-state" style="display:none">No chapters yet.</p>
-
-    <!-- Feedback -->
-    <div class="feedback-section" id="feedback-section">
-      <p class="feedback-label">Feedback</p>
-      <p class="feedback-sub">Share your thoughts — anonymous, no sign-in needed.</p>
-      <textarea id="feedback-text" placeholder="What did you think? Any reactions, notes, or suggestions are welcome..."></textarea>
-      <div class="feedback-footer">
-        <button id="feedback-submit">Send feedback</button>
-      </div>
-      <p class="feedback-sent" id="feedback-sent">Thank you — your feedback has been received.</p>
-    </div>
   </div>
 
   <a href="admin.html" class="admin-link">admin</a>
@@ -366,14 +280,6 @@
     // SHA-256 hash of 'edmund01' — the actual password never appears here.
     // To change the password, update this hash (use https://emn178.github.io/online-tools/sha256.html).
     const READER_HASH = 'd23148e2ddc47afef39fca96048a9afddc11e60c53c2c862721a1fab907d3d70';
-
-    // GitHub repo details — used to submit feedback as Issues.
-    const GITHUB_USER = 'morlj015';
-    const GITHUB_REPO = 'writing-website';
-    // Fine-grained PAT with ONLY "Issues: Read and Write" on this repo.
-    // Create one at: GitHub → Settings → Developer settings → Fine-grained tokens
-    // Set repository access to "writing-website" and tick Issues → Read & write.
-    const FEEDBACK_TOKEN = '';
 
     const lockScreen = document.getElementById('lock-screen');
     const lockSvg    = document.getElementById('lock-svg');
@@ -438,59 +344,6 @@
           return `<p>${b.replace(/\n/g, ' ')}</p>`;
         })
         .join('');
-    }
-
-    // ── Feedback ──────────────────────────────────────────────────────────────
-
-    // Hide the feedback section until a token is configured
-    if (!FEEDBACK_TOKEN) {
-      document.getElementById('feedback-section').style.display = 'none';
-    } else {
-      document.getElementById('feedback-submit').addEventListener('click', async () => {
-        const message = document.getElementById('feedback-text').value.trim();
-        if (!message) return;
-
-        const btn = document.getElementById('feedback-submit');
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-
-        // Ensure the "feedback" label exists (safe to ignore if it already does)
-        await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/labels`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${FEEDBACK_TOKEN}`,
-            'Accept': 'application/vnd.github+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ name: 'feedback', color: 'e8d5b7', description: 'Reader feedback' })
-        });
-
-        const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-        const res = await fetch(`https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/issues`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${FEEDBACK_TOKEN}`,
-            'Accept': 'application/vnd.github+json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            title: 'Reader feedback',
-            body: `> ${message.replace(/\n/g, '\n> ')}\n\n*Submitted ${date}*`,
-            labels: ['feedback']
-          })
-        });
-
-        if (res.ok) {
-          document.getElementById('feedback-text').style.display = 'none';
-          document.querySelector('.feedback-footer').style.display = 'none';
-          document.querySelector('.feedback-sub').style.display = 'none';
-          document.getElementById('feedback-sent').classList.add('visible');
-        } else {
-          btn.textContent = 'Try again';
-          btn.disabled = false;
-        }
-      });
     }
 
     function renderBook(data) {
