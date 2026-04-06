@@ -1,0 +1,18 @@
+{
+  "title": "My Book",
+  "subtitle": "",
+  "chapters": [
+    {
+      "id": "1775516117859",
+      "title": "Chapter 1",
+      "content": "test",
+      "createdAt": "2026-04-06T22:55:17.859Z"
+    },
+    {
+      "id": "1775516124846",
+      "title": "Chapter 2",
+      "content": "test",
+      "createdAt": "2026-04-06T22:55:24.846Z"
+    }
+  ]
+}
