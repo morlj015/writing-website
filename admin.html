@@ -238,6 +238,39 @@
 
     hr.divider { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
 
+    /* ── Format button ───────────────────────────────────────────────────────── */
+
+    .content-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+
+    .btn-format {
+      font-family: inherit;
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.55rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+
+    .btn-format:hover { color: var(--text); border-color: var(--muted); }
+
+    .format-indicator {
+      font-size: 0.72rem;
+      color: var(--success);
+      opacity: 0;
+      transition: opacity 0.4s;
+      margin-left: 0.4rem;
+    }
+
+    .format-indicator.visible { opacity: 1; }
+
     /* ── Feedback panel ──────────────────────────────────────────────────────── */
 
     .sidebar-feedback-btn {
@@ -394,8 +427,14 @@
             </div>
           </div>
           <div>
-            <p class="field-label" style="margin-bottom:0.4rem">Content</p>
-            <textarea class="content-textarea" id="chapter-content-input" placeholder="Paste or type your chapter here...&#10;&#10;Separate paragraphs with a blank line."></textarea>
+            <div class="content-label-row">
+              <span class="field-label">Content</span>
+              <span>
+                <span class="format-indicator" id="format-indicator">Formatted</span>
+                <button class="btn-format" id="format-btn" title="Apply smart quotes, em dashes, ellipsis and scene breaks">Format text</button>
+              </span>
+            </div>
+            <textarea class="content-textarea" id="chapter-content-input" placeholder="Paste or type your chapter here...&#10;&#10;Separate paragraphs with a blank line.&#10;Use  * * *  on its own line for a scene break."></textarea>
           </div>
           <div class="editor-actions">
             <button class="btn btn-danger btn-sm" id="delete-chapter-btn">Delete chapter</button>
@@ -420,6 +459,78 @@
   <div class="toast" id="toast"></div>
 
   <script>
+    // ── Book formatting ───────────────────────────────────────────────────────
+    //
+    // Applied automatically on paste and manually via the "Format text" button.
+    // Transforms:
+    //   "hello"  →  "hello"        smart double quotes
+    //   it's     →  it's           smart apostrophes
+    //   word--   →  word—          em dash
+    //   ...      →  …              ellipsis
+    //   *** / --- / # on own line  →  * * *   scene break
+    //   3+ blank lines             →  1 blank line
+
+    function formatText(raw) {
+      let t = raw;
+
+      // Normalize line endings
+      t = t.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+      // Scene breaks: a line that is only *, -, or # characters (with optional spaces)
+      t = t.replace(/^[ \t]*(\*[ \t]*){2,}[ \t]*$/gm, '* * *');
+      t = t.replace(/^[ \t]*-{2,}[ \t]*$/gm,          '* * *');
+      t = t.replace(/^[ \t]*(#[ \t]*){2,}[ \t]*$/gm,  '* * *');
+
+      // Em dash: -- (must not already be preceded/followed by another -)
+      t = t.replace(/(?<!-)-{2}(?!-)/g, '\u2014');
+
+      // Ellipsis: exactly three dots (not four+)
+      t = t.replace(/\.{3}(?!\.)/g, '\u2026');
+
+      // Smart quotes — process line by line for correct open/close detection
+      t = t.split('\n').map(line => {
+        // ── Double quotes ──
+        // Opening " : at start of line or after whitespace / opening brackets / em dash
+        line = line.replace(/(^|[\s\u2014(\[{])"(?=\S)/g, '$1\u201C');
+        // Closing " : everything remaining
+        line = line.replace(/"/g, '\u201D');
+
+        // ── Single quotes / apostrophes ──
+        // Mid-word apostrophe: between two word characters (don't, it's, 90's)
+        line = line.replace(/(\w)'(\w)/g, '$1\u2019$2');
+        // Opening ' : at start of line or after whitespace / opening brackets / em dash
+        line = line.replace(/(^|[\s\u2014(\[{])'(?=\S)/g, '$1\u2018');
+        // Closing ' : everything remaining
+        line = line.replace(/'/g, '\u2019');
+
+        return line;
+      }).join('\n');
+
+      // Collapse excessive blank lines (more than one blank line → one)
+      t = t.replace(/\n{3,}/g, '\n\n');
+
+      // Trim trailing whitespace from each line
+      t = t.replace(/[ \t]+$/gm, '');
+
+      return t;
+    }
+
+    function applyFormat() {
+      const ta = document.getElementById('chapter-content-input');
+      const formatted = formatText(ta.value);
+      if (formatted === ta.value) return; // nothing changed
+
+      // Preserve cursor position as best we can
+      const start = ta.selectionStart;
+      ta.value = formatted;
+      ta.selectionStart = ta.selectionEnd = Math.min(start, formatted.length);
+
+      // Show indicator
+      const indicator = document.getElementById('format-indicator');
+      indicator.classList.add('visible');
+      setTimeout(() => indicator.classList.remove('visible'), 2000);
+    }
+
     // ── Config ────────────────────────────────────────────────────────────────
     // SHA-256 hash of '12345'. To change the password, update this hash.
     const ADMIN_HASH  = '5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5';
@@ -480,6 +591,15 @@
       const content = JSON.stringify(bookData, null, 2);
       await ghPut(DATA_PATH, content, sha, 'Update book content');
     }
+
+    // ── Format button & auto-format on paste ─────────────────────────────────
+
+    document.getElementById('format-btn').addEventListener('click', applyFormat);
+
+    document.getElementById('chapter-content-input').addEventListener('paste', () => {
+      // Let the paste complete before formatting
+      setTimeout(applyFormat, 60);
+    });
 
     // ── Login ─────────────────────────────────────────────────────────────────
 
